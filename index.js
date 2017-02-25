@@ -4,6 +4,15 @@ const Datastore = require('nedb');
 const SpotifyWebApi = require('spotify-web-api-node');
 const CronJob = require('cron').CronJob;
 
+const express = require('express');
+const http = require('http');
+const app = express();
+const server = http.createServer(app);
+const port = process.env.PORT || 8080;
+
+app.use(express.static(__dirname + '/public'));
+server.listen(port);
+
 const SPOTIFY_USER = '1222363326';
 const SPOTIFY_PLAYLIST = '4FnLbvEcgZaPYOEXdwX96x';
 const SPOTIFY_CLIENT_ID = 'dc6f6365e71c44e0b8e4613897b63755';
