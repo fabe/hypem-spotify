@@ -22,12 +22,15 @@
     "url": "https://github.com/fabe/hypem-spotify/issues"
   },
   "homepage": "https://github.com/fabe/hypem-spotify#readme",
-  "devDependencies": {
+  "dependencies": {
     "cron": "^1.2.1",
     "express": "^4.14.1",
     "nedb": "^1.8.0",
     "node-fetch": "^1.6.3",
     "spotify-web-api-node": "^2.3.6",
     "winston": "^2.3.1"
+  },
+  "engines": {
+    "node": "6.9.2"
   }
 }
