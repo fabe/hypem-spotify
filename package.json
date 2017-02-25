@@ -1,0 +1,24 @@
+{
+  "name": "hypem-spotify",
+  "version": "0.0.1",
+  "description": "Adds popular Hypem tracks to a spotify playlist.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fabe/hypem-spotify.git"
+  },
+  "keywords": [
+    "hypem",
+    "spotify",
+    "bot"
+  ],
+  "author": "Fabian Schultz",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/fabe/hypem-spotify/issues"
+  },
+  "homepage": "https://github.com/fabe/hypem-spotify#readme"
+}
