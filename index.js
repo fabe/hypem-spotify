@@ -43,6 +43,7 @@ const spotifyApi = new SpotifyWebApi({
 });
 spotifyApi.setRefreshToken(SPOTIFY_REFRESH_TOKEN);
 
+getNewTracks();
 new CronJob('0 0 * * *', function() {
   log.info('Starting to fetch new hot tracks!');
   getNewTracks();
