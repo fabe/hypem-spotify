@@ -56,14 +56,16 @@ new CronJob('0 0 * * *', function() {
 function getNewTracks() {
   refreshToken(() => {
     getPopularTracks(data => {
-      saveToDatabase(minifyData(data));
       data.forEach((track, i) => {
-        db.find({ itemid: track.itemid }, (err, results) => {
-          if (results.length == 0) {
-            searchTrack(track.artist, track.title, uri => uri ? addTrack(uri) : null);
-          }
-        });
+        setTimeout(() => {
+          db.find({ itemid: track.itemid }, (err, results) => {
+            if (results.length == 0) {
+              searchTrack(track.artist, track.title, uri => uri ? addTrack(uri) : null);
+            }
+          });
+        }, 100 * i);
       });
+      //saveToDatabase(minifyData(data));
     });
   });
 }
