@@ -1,17 +1,7 @@
 const fetch = require('node-fetch');
 const winston = require('winston');
-const Datastore = require('nedb');
 const SpotifyWebApi = require('spotify-web-api-node');
 const CronJob = require('cron').CronJob;
-
-const express = require('express');
-const http = require('http');
-const app = express();
-const server = http.createServer(app);
-const port = process.env.PORT || 8080;
-
-app.use(express.static(__dirname + '/public'));
-server.listen(port);
 
 const DESCRIPTION =
   '🔥 Top 50 Hype Machine tracks on Spotify, updated every 24 hours! Maintained by a bot 🤖.';
