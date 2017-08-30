@@ -24,8 +24,7 @@
   "homepage": "https://github.com/fabe/hypem-spotify#readme",
   "dependencies": {
     "cron": "^1.2.1",
-    "express": "^4.14.1",
-    "nedb": "^1.8.0",
+    "dotenv": "^4.0.0",
     "node-fetch": "^1.6.3",
     "spotify-web-api-node": "^2.3.6",
     "winston": "^2.3.1"

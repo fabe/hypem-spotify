@@ -1,3 +1,4 @@
+require('dotenv').config();
 const fetch = require('node-fetch');
 const winston = require('winston');
 const SpotifyWebApi = require('spotify-web-api-node');
@@ -5,12 +6,11 @@ const CronJob = require('cron').CronJob;
 
 const DESCRIPTION =
   '🔥 Top 50 Hype Machine tracks on Spotify, updated every 24 hours! Maintained by a bot 🤖.';
-const SPOTIFY_USER = '1222363326';
-const SPOTIFY_PLAYLIST = '4FnLbvEcgZaPYOEXdwX96x';
-const SPOTIFY_CLIENT_ID = 'dc6f6365e71c44e0b8e4613897b63755';
-const SPOTIFY_CLIENT_SECRET = '9560e6dc3aa941b7a3f39b8326668c97';
-const SPOTIFY_REFRESH_TOKEN =
-  'AQAAnWMgD5cY2nRnT5A8RGnOCXp8GRU7bYb0PgANXpWQtup3KCN3lGsEH7ZrfsjrRMmGmNEgBtv8wN89GRxtc36YdUI2EFbDJV5LmraVQ9PEtVtcTMd0xrRKXnlEKM_kz6A';
+const SPOTIFY_USER = process.env.SPOTIFY_USER;
+const SPOTIFY_PLAYLIST = process.env.SPOTIFY_PLAYLIST;
+const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
+const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
+const SPOTIFY_REFRESH_TOKEN = process.env.SPOTIFY_REFRESH_TOKEN;
 
 // Winston
 const log = new winston.Logger({
