@@ -18,17 +18,6 @@ const log = new winston.Logger({
 });
 winston.level = 'debug';
 
-// Database
-const db = new Datastore({ filename: `${__dirname}/db/tracks` });
-db.loadDatabase(err => (err ? log.error(err) : null));
-db.ensureIndex(
-  { fieldName: 'itemid', unique: true },
-  err => (err ? log.error(err) : null)
-);
-
-// Go time
-// getPopularTracks(data => saveToDatabase(minifyData(data)));
-
 // Set up Spotify API.
 const spotifyApi = new SpotifyWebApi({
   clientId: SPOTIFY_CLIENT_ID,
@@ -65,7 +54,6 @@ function getNewTracks() {
             uri => (uri ? addTrack(uri) : null)
           );
         });
-        //saveToDatabase(minifyData(data));
       });
     });
   });
@@ -128,26 +116,6 @@ function getPopularTracks(callback) {
       log.info('Fetched popular tracks.');
       callback(data);
     });
-}
-
-/**
- * Get Hypem tracks
- * @param {array} data - Data to save.
- * @callback - Fired once completed.
- */
-function saveToDatabase(data, callback) {
-  data.forEach(item => {
-    db.find({ itemid: item.itemid }, (err, results) => {
-      if (results.length == 0) {
-        db.insert(item, err => {
-          err ? log.error(err) : null;
-          callback ? callback() : null;
-        });
-      } else {
-        callback ? callback(false) : null;
-      }
-    });
-  });
 }
 
 /**
