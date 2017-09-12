@@ -1,5 +1,7 @@
 require('dotenv').config();
 const fetch = require('node-fetch');
+const moment = require('moment');
+const timestamp = moment().format('DD.MM.YYYY HH:mm:ss');
 const winston = require('winston');
 const SpotifyWebApi = require('spotify-web-api-node');
 const CronJob = require('cron').CronJob;
@@ -30,7 +32,7 @@ getNewTracks();
 new CronJob(
   '0 0 * * *',
   function() {
-    log.info('Starting to fetch new hot tracks!');
+    log.info(timestamp, 'Starting to fetch new hot tracks!');
     getNewTracks();
   },
   null,
@@ -48,11 +50,13 @@ function getNewTracks() {
     clearPlaylist(() => {
       getPopularTracks(data => {
         data.forEach((track, i) => {
-          searchTrack(
-            track.artist,
-            track.title,
-            uri => (uri ? addTrack(uri) : null)
-          );
+          setTimeout(() => {
+            searchTrack(
+              track.artist,
+              track.title,
+              uri => (uri ? addTrack(uri) : null)
+            );
+          }, 1000 * i);
         });
       });
     });
@@ -65,17 +69,51 @@ function getNewTracks() {
  * @param {string} rirle - Title/name of track.
  * @callback - Sends out URI of track.
  */
-function searchTrack(artist, title, callback) {
+function searchTrack(artist, title, callback, retry) {
   const fullTitle = `${artist} - ${title}`;
   const hello = spotifyApi.searchTracks(fullTitle).then(data => {
     const track = data.body.tracks.items[0];
     if (track) {
       callback(track.uri);
     } else {
-      log.error('Track not found: ' + fullTitle);
-      callback(false);
+      if (retry) {
+        log.error(timestamp, 'Track not found: ' + fullTitle);
+        callback(false);
+      } else {
+        const normalized = normalizeTrack(artist, title);
+        searchTrack(normalized.artist, normalized.title, callback, true);
+      }
     }
-  }, err => (err ? log.error(err) : null));
+  }, err => (err ? log.error(timestamp, err) : null));
+}
+
+/**
+ * Normalizes a track that otherwise cannot be found.
+ * @param {string} artist - Artist of track.
+ * @param {string} title - Title/name of track.
+ * @return {object} - Normalized artist & track.
+ */
+function normalizeTrack(artist, title) {
+  const chars = ['(', '{', '[', ' & ', 'w/', ' ~ ', 'feat'];
+  artist = removeAfterChar(artist, chars);
+  title = removeAfterChar(title, chars);
+
+  return { artist, title };
+}
+
+/**
+ * Removes everything after a given char/string.
+ * @param {string} string - Input.
+ * @param {array} chars - List of unwanted chars/strings.
+ * @return {string} - Minified string.
+ */
+function removeAfterChar(string, chars) {
+  chars.forEach(char => {
+    let n = string.indexOf(char);
+    string = string.substring(0, n != -1 ? n : string.length);
+  });
+
+  return string.trim();
 }
 
 /**
@@ -83,15 +121,12 @@ function searchTrack(artist, title, callback) {
  * @param {string} track - Track as Spotify URI.
  */
 function addTrack(track) {
-  spotifyApi.setRefreshToken(SPOTIFY_REFRESH_TOKEN);
-  refreshToken(() => {
-    spotifyApi
-      .addTracksToPlaylist(SPOTIFY_USER, SPOTIFY_PLAYLIST, [track])
-      .then(
-        data => log.info('Added track to playlist.'),
-        err => (err ? log.error(err) : null)
-      );
-  });
+  spotifyApi
+    .addTracksToPlaylist(SPOTIFY_USER, SPOTIFY_PLAYLIST, [track])
+    .then(
+      data => log.info(timestamp, 'Added track to playlist.'),
+      err => (err ? log.error(timestamp, err) : null)
+    );
 }
 
 /**
@@ -102,7 +137,7 @@ function refreshToken(callback) {
   spotifyApi.refreshAccessToken().then(data => {
     spotifyApi.setAccessToken(data.body['access_token']);
     callback ? callback() : null;
-  }, err => (err ? log.error(err) : null));
+  }, err => (err ? log.error(timestamp, err) : null));
 }
 
 /**
@@ -113,7 +148,7 @@ function getPopularTracks(callback) {
   fetch('https://api.hypem.com/v2/popular?mode=now&count=50')
     .then(res => res.json())
     .then(data => {
-      log.info('Fetched popular tracks.');
+      log.info(timestamp, 'Fetched popular tracks.');
       callback(data);
     });
 }
@@ -136,17 +171,17 @@ function minifyData(data) {
  */
 function clearPlaylist(callback) {
   spotifyApi.getPlaylist(SPOTIFY_USER, SPOTIFY_PLAYLIST).then(data => {
-    log.info('Got all tracks!');
+    log.info(timestamp, 'Got all tracks!');
     const tracks = data.body.tracks.items.map(item => ({
       uri: item.track.uri,
     }));
     spotifyApi
       .removeTracksFromPlaylist(SPOTIFY_USER, SPOTIFY_PLAYLIST, tracks)
       .then(data => {
-        log.info('Playlist cleared!');
+        log.info(timestamp, 'Playlist cleared!');
         callback();
-      }, err => (err ? log.error(err) : null));
-  }, err => (err ? log.error(err) : null));
+      }, err => (err ? log.error(timestamp, err) : null));
+  }, err => (err ? log.error(timestamp, err) : null));
 }
 
 /**
@@ -155,8 +190,10 @@ function clearPlaylist(callback) {
 function updatePlaylistDescription() {
   spotifyApi
     .changePlaylistDetails(SPOTIFY_USER, SPOTIFY_PLAYLIST, {
-      description: `${DESCRIPTION} Last updated: ${new Date().toISOString()}`,
+      description: `${DESCRIPTION} Last updated ${moment().format(
+        'MMMM Do YYYY'
+      )}`,
     })
-    .then(data => log.info('Playlist description updated!')), err =>
-    log.error('Something went wrong!', err);
+    .then(data => log.info(timestamp, 'Playlist description updated!')),
+    err => log.error(timestamp, 'Something went wrong!', err);
 }
