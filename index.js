@@ -1,5 +1,6 @@
 require('dotenv').config();
 const fetch = require('node-fetch');
+const cheerio = require('cheerio');
 const moment = require('moment');
 const timestamp = moment().format('DD.MM.YYYY HH:mm:ss');
 const winston = require('winston');
@@ -7,7 +8,7 @@ const SpotifyWebApi = require('spotify-web-api-node');
 const CronJob = require('cron').CronJob;
 
 const DESCRIPTION =
-  '🔥 Top 50 Hype Machine tracks on Spotify, updated every 24 hours! Maintained by a bot 🤖.';
+  '🔥 Top 50 Hype Machine tracks that are available on Spotify, updated every 24 hours! Maintained by a 🤖.';
 const SPOTIFY_USER = process.env.SPOTIFY_USER;
 const SPOTIFY_PLAYLIST = process.env.SPOTIFY_PLAYLIST;
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
@@ -48,19 +49,89 @@ function getNewTracks() {
   refreshToken(() => {
     updatePlaylistDescription();
     clearPlaylist(() => {
-      getPopularTracks(data => {
-        data.forEach((track, i) => {
-          setTimeout(() => {
-            searchTrack(
-              track.artist,
-              track.title,
-              uri => (uri ? addTrack(uri) : null)
-            );
-          }, 1000 * i);
+      crawlTopTracks().then(tracks => {
+        getTracksManually().then(otherTracks => {
+          const arr = unique(tracks.concat(otherTracks));
+          arr.forEach((uri, i) => {
+            setTimeout(() => {
+              if (uri) {
+                addTrack(uri);
+              }
+            }, 1000 * i);
+          });
         });
       });
     });
   });
+}
+
+/**
+ * Gets tracks from the HypeM api and searches them manually.
+ * @promise {array} - Returns the track list as Spotify URIs.
+ */
+function getTracksManually() {
+  return getPopularTracks().then(data => {
+    let promises = [];
+    data.forEach((track, i) => {
+      promises.push(searchTrack(track.artist, track.title));
+    });
+    return Promise.all(promises);
+  });
+}
+
+/**
+ * Crawls all popular pages from hypem and returns the tracklist.
+ * @promise {array} - Returns the track list as Spotify URIs.
+ */
+function crawlTopTracks() {
+  const urls = [
+    'https://hypem.com/popular',
+    'https://hypem.com/popular/2',
+    'https://hypem.com/popular/3',
+  ];
+  let promises = [];
+  urls.forEach(url => {
+    promises.push(getTracksFromHTML(url));
+  });
+
+  return Promise.all(promises).then(tracks => {
+    const ids = tracks.join().split(',');
+    return ids.map(id => `spotify:track:${id}`);
+  });
+}
+
+/**
+ * Crawls a webpage and returns Spotify IDs.
+ * @param {string} url - URL of page to crawl.
+ * @promise {array} - Returns the track list.
+ */
+function getTracksFromHTML(url) {
+  return fetch(url)
+    .then(res => res.text())
+    .then(html => {
+      const tracks = [];
+      const $ = cheerio.load(html);
+
+      $('#track-list')
+        .children()
+        .each((i, track) => {
+          const urls = $(track)
+            .find('.meta')
+            .find('.download')
+            .children();
+
+          const spotify = urls.each((i, el) => {
+            el = $(el);
+            if (el.text() === 'Spotify') {
+              const href = el.attr('href');
+              const id = href.substr(href.lastIndexOf('/') + 1);
+              tracks.push(id);
+            }
+          });
+        });
+
+      return tracks;
+    });
 }
 
 /**
@@ -71,19 +142,26 @@ function getNewTracks() {
  */
 function searchTrack(artist, title, callback, retry) {
   const fullTitle = `${artist} - ${title}`;
-  const hello = spotifyApi.searchTracks(fullTitle).then(data => {
+  return spotifyApi.searchTracks(fullTitle).then(data => {
     const track = data.body.tracks.items[0];
+
     if (track) {
-      callback(track.uri);
+      return track.uri;
     } else {
-      if (retry) {
-        log.error(timestamp, 'Track not found: ' + fullTitle);
-        callback(false);
-      } else {
-        const normalized = normalizeTrack(artist, title);
-        searchTrack(normalized.artist, normalized.title, callback, true);
-      }
+      return false;
     }
+
+    // if (track) {
+    //   callback(track.uri);
+    // } else {
+    //   if (retry) {
+    //     log.error(timestamp, 'Track not found: ' + fullTitle);
+    //     callback(false);
+    //   } else {
+    //     const normalized = normalizeTrack(artist, title);
+    //     searchTrack(normalized.artist, normalized.title, callback, true);
+    //   }
+    // }
   }, err => (err ? log.error(timestamp, err) : null));
 }
 
@@ -144,12 +222,12 @@ function refreshToken(callback) {
  * Get Hypem tracks
  * @callback - Sends out data.
  */
-function getPopularTracks(callback) {
-  fetch('https://api.hypem.com/v2/popular?mode=now&count=50')
+function getPopularTracks() {
+  return fetch('https://api.hypem.com/v2/popular?mode=now&count=50')
     .then(res => res.json())
     .then(data => {
       log.info(timestamp, 'Fetched popular tracks.');
-      callback(data);
+      return data;
     });
 }
 
@@ -190,10 +268,19 @@ function clearPlaylist(callback) {
 function updatePlaylistDescription() {
   spotifyApi
     .changePlaylistDetails(SPOTIFY_USER, SPOTIFY_PLAYLIST, {
-      description: `${DESCRIPTION} Last updated ${moment().format(
+      description: `${DESCRIPTION} Last updated on ${moment().format(
         'MMMM Do YYYY'
-      )}`,
+      )}.`,
     })
     .then(data => log.info(timestamp, 'Playlist description updated!')),
     err => log.error(timestamp, 'Something went wrong!', err);
+}
+
+/**
+ * Create unique array.
+ */
+function unique(arrArg) {
+  return arrArg.filter((elem, pos, arr) => {
+    return arr.indexOf(elem) == pos;
+  });
 }

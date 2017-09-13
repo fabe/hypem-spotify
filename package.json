@@ -23,6 +23,7 @@
   },
   "homepage": "https://github.com/fabe/hypem-spotify#readme",
   "dependencies": {
+    "cheerio": "^1.0.0-rc.2",
     "cron": "^1.2.1",
     "dotenv": "^4.0.0",
     "moment": "^2.18.1",
