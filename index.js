@@ -5,6 +5,7 @@ const moment = require('moment');
 const timestamp = moment().format('DD.MM.YYYY HH:mm:ss');
 const winston = require('winston');
 const SpotifyWebApi = require('spotify-web-api-node');
+const unique = require('array-unique');
 const CronJob = require('cron').CronJob;
 
 const DESCRIPTION =
@@ -274,13 +275,4 @@ function updatePlaylistDescription() {
     })
     .then(data => log.info(timestamp, 'Playlist description updated!')),
     err => log.error(timestamp, 'Something went wrong!', err);
-}
-
-/**
- * Create unique array.
- */
-function unique(arrArg) {
-  return arrArg.filter((elem, pos, arr) => {
-    return arr.indexOf(elem) == pos;
-  });
 }
