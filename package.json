@@ -11,11 +11,7 @@
     "type": "git",
     "url": "git+https://github.com/fabe/hypem-spotify.git"
   },
-  "keywords": [
-    "hypem",
-    "spotify",
-    "bot"
-  ],
+  "keywords": ["hypem", "spotify", "bot"],
   "author": "Fabian Schultz",
   "license": "MIT",
   "bugs": {
@@ -29,7 +25,7 @@
     "dotenv": "^4.0.0",
     "moment": "^2.18.1",
     "node-fetch": "^1.6.3",
-    "spotify-web-api-node": "^2.3.6",
+    "spotify-web-api-node": "^2.5.0",
     "winston": "^2.3.1"
   },
   "engines": {

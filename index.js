@@ -44,6 +44,7 @@ new CronJob(
 
 /**
  * Welcome to callback hell!
+ * Jesus christ I'm not proud of this 🙄
  * Brings everything together.
  */
 function getNewTracks() {
@@ -60,6 +61,9 @@ function getNewTracks() {
               }
             }, 1000 * i);
           });
+          setTimeout(() => {
+            removeDuplicateTracks();
+          }, 1000 * arr.length + 1);
         });
       });
     });
@@ -109,29 +113,51 @@ function crawlTopTracks() {
 function getTracksFromHTML(url) {
   return fetch(url)
     .then(res => res.text())
-    .then(html => {
+    .then(async html => {
       const tracks = [];
       const $ = cheerio.load(html);
 
-      $('#track-list')
-        .children()
-        .each((i, track) => {
-          const urls = $(track)
-            .find('.meta')
-            .find('.download')
-            .children();
+      const search = new Promise((resolve, reject) => {
+        $('#track-list')
+          .children()
+          .each(async (i, track) => {
+            const urls = $(track)
+              .find('.meta')
+              .find('.download')
+              .children();
+            let foundSpotify = false;
 
-          const spotify = urls.each((i, el) => {
-            el = $(el);
-            if (el.text() === 'Spotify') {
-              const href = el.attr('href');
-              const id = href.substr(href.lastIndexOf('/') + 1);
-              tracks.push(id);
+            const spotify = urls.each((i, el) => {
+              el = $(el);
+              if (el.text() === 'Spotify') {
+                foundSpotify = true;
+                const href = el.attr('href');
+                const id = href.substr(href.lastIndexOf('/') + 1);
+                tracks.push(id);
+              }
+            });
+
+            if (!foundSpotify) {
+              const artist = $(track)
+                .find('.track_name')
+                .find('.artist')
+                .text();
+              const title = $(track)
+                .find('.track_name')
+                .find('.base-title')
+                .text();
+              const uri = await searchTrack(artist, title);
+              console.log(uri);
+
+              tracks.push(uri);
             }
-          });
-        });
 
-      return tracks;
+            resolve(tracks);
+          });
+      });
+
+      const t = await search.then(tr => tr);
+      return t;
     });
 }
 
@@ -142,7 +168,7 @@ function getTracksFromHTML(url) {
  * @callback - Sends out URI of track.
  */
 function searchTrack(artist, title, callback, retry) {
-  const fullTitle = `${artist} - ${title}`;
+  const fullTitle = `track:${title} artist:${artist}`;
   return spotifyApi.searchTracks(fullTitle).then(data => {
     const track = data.body.tracks.items[0];
 
@@ -261,6 +287,33 @@ function clearPlaylist(callback) {
         callback();
       }, err => (err ? log.error(timestamp, err) : null));
   }, err => (err ? log.error(timestamp, err) : null));
+}
+
+function removeDuplicateTracks() {
+  return spotifyApi.getPlaylist(SPOTIFY_USER, SPOTIFY_PLAYLIST).then(data => {
+    log.info(timestamp, 'Got all tracks!');
+    const tracks = data.body.tracks.items.map(item => ({
+      uri: item.track.uri,
+      name: item.track.name,
+    }));
+
+    let uniq = {};
+    const duplicates = tracks.filter(function(entry) {
+      if (uniq[entry.name]) {
+        return true;
+      }
+      uniq[entry.name] = true;
+      return false;
+    });
+
+    if (duplicates.length) {
+      spotifyApi
+        .removeTracksFromPlaylist(SPOTIFY_USER, SPOTIFY_PLAYLIST, duplicates)
+        .then(data => {
+          log.info(timestamp, `Removed ${duplicates.length} duplicate tracks!`);
+        });
+    }
+  });
 }
 
 /**
