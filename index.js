@@ -1,20 +1,48 @@
 require('dotenv').config();
 const fetch = require('node-fetch');
 const cheerio = require('cheerio');
+const CronJob = require('cron').CronJob;
 const moment = require('moment');
 const timestamp = moment().format('DD.MM.YYYY HH:mm:ss');
 const winston = require('winston');
 const SpotifyWebApi = require('spotify-web-api-node');
 const unique = require('array-unique');
-const CronJob = require('cron').CronJob;
+const http = require('http');
+const { PORT = 3002 } = process.env;
 
 const DESCRIPTION =
-  '🔥 Top 50 Hype Machine tracks that are available on Spotify, updated every 24 hours! Maintained by a 🤖.';
+  '🔥 Top 50 Hype Machine tracks that are available on Spotify, updated every 24 hours! Maintained by a bot. Open Source: https://github.com/fabe/hypem-spotify';
 const SPOTIFY_USER = process.env.SPOTIFY_USER;
 const SPOTIFY_PLAYLIST = process.env.SPOTIFY_PLAYLIST;
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const SPOTIFY_REFRESH_TOKEN = process.env.SPOTIFY_REFRESH_TOKEN;
+
+require('http')
+  .createServer((req, res) => {
+    if (req.url !== '/') {
+      return;
+    }
+
+    getNewTracks();
+
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.end('🤖 HypeM Bot is doing its job!\n');
+  })
+  .listen(PORT);
+
+new CronJob(
+  '0 0 * * *',
+  function() {
+    log.info(timestamp, 'Starting to fetch new hot tracks!');
+    getNewTracks();
+  },
+  null,
+  true,
+  'GMT'
+);
 
 // Winston
 const log = new winston.Logger({
@@ -28,19 +56,8 @@ const spotifyApi = new SpotifyWebApi({
   clientSecret: SPOTIFY_CLIENT_SECRET,
   redirectUri: 'https://example.com/callback',
 });
-spotifyApi.setRefreshToken(SPOTIFY_REFRESH_TOKEN);
 
-getNewTracks();
-new CronJob(
-  '0 0 * * *',
-  function() {
-    log.info(timestamp, 'Starting to fetch new hot tracks!');
-    getNewTracks();
-  },
-  null,
-  true,
-  'GMT'
-);
+spotifyApi.setRefreshToken(SPOTIFY_REFRESH_TOKEN);
 
 /**
  * Welcome to callback hell!
@@ -51,20 +68,8 @@ function getNewTracks() {
   refreshToken(() => {
     updatePlaylistDescription();
     clearPlaylist(() => {
-      crawlTopTracks().then(tracks => {
-        getTracksManually().then(otherTracks => {
-          const arr = unique(tracks.concat(otherTracks));
-          arr.forEach((uri, i) => {
-            setTimeout(() => {
-              if (uri) {
-                addTrack(uri);
-              }
-            }, 1000 * i);
-          });
-          setTimeout(() => {
-            removeDuplicateTracks();
-          }, 1000 * arr.length + 1);
-        });
+      getTracksManually().then(tracks => {
+        addTracks(tracks.filter(t => typeof t === 'string'));
       });
     });
   });
@@ -85,83 +90,6 @@ function getTracksManually() {
 }
 
 /**
- * Crawls all popular pages from hypem and returns the tracklist.
- * @promise {array} - Returns the track list as Spotify URIs.
- */
-function crawlTopTracks() {
-  const urls = [
-    'https://hypem.com/popular',
-    'https://hypem.com/popular/2',
-    'https://hypem.com/popular/3',
-  ];
-  let promises = [];
-  urls.forEach(url => {
-    promises.push(getTracksFromHTML(url));
-  });
-
-  return Promise.all(promises).then(tracks => {
-    const ids = tracks.join().split(',');
-    return ids.map(id => `spotify:track:${id}`);
-  });
-}
-
-/**
- * Crawls a webpage and returns Spotify IDs.
- * @param {string} url - URL of page to crawl.
- * @promise {array} - Returns the track list.
- */
-function getTracksFromHTML(url) {
-  return fetch(url)
-    .then(res => res.text())
-    .then(async html => {
-      const tracks = [];
-      const $ = cheerio.load(html);
-
-      const search = new Promise((resolve, reject) => {
-        $('#track-list')
-          .children()
-          .each(async (i, track) => {
-            const urls = $(track)
-              .find('.meta')
-              .find('.download')
-              .children();
-            let foundSpotify = false;
-
-            const spotify = urls.each((i, el) => {
-              el = $(el);
-              if (el.text() === 'Spotify') {
-                foundSpotify = true;
-                const href = el.attr('href');
-                const id = href.substr(href.lastIndexOf('/') + 1);
-                tracks.push(id);
-              }
-            });
-
-            if (!foundSpotify) {
-              const artist = $(track)
-                .find('.track_name')
-                .find('.artist')
-                .text();
-              const title = $(track)
-                .find('.track_name')
-                .find('.base-title')
-                .text();
-              const uri = await searchTrack(artist, title);
-              console.log(uri);
-
-              tracks.push(uri);
-            }
-
-            resolve(tracks);
-          });
-      });
-
-      const t = await search.then(tr => tr);
-      return t;
-    });
-}
-
-/**
  * Add track to playlist.
  * @param {string} artist - Artist of track.
  * @param {string} rirle - Title/name of track.
@@ -169,27 +97,30 @@ function getTracksFromHTML(url) {
  */
 function searchTrack(artist, title, callback, retry) {
   const fullTitle = `track:${title} artist:${artist}`;
-  return spotifyApi.searchTracks(fullTitle).then(data => {
-    const track = data.body.tracks.items[0];
+  return spotifyApi.searchTracks(fullTitle).then(
+    data => {
+      const track = data.body.tracks.items[0];
 
-    if (track) {
-      return track.uri;
-    } else {
-      return false;
-    }
+      if (track) {
+        return track.uri;
+      } else {
+        return false;
+      }
 
-    // if (track) {
-    //   callback(track.uri);
-    // } else {
-    //   if (retry) {
-    //     log.error(timestamp, 'Track not found: ' + fullTitle);
-    //     callback(false);
-    //   } else {
-    //     const normalized = normalizeTrack(artist, title);
-    //     searchTrack(normalized.artist, normalized.title, callback, true);
-    //   }
-    // }
-  }, err => (err ? log.error(timestamp, err) : null));
+      // if (track) {
+      //   callback(track.uri);
+      // } else {
+      //   if (retry) {
+      //     log.error(timestamp, 'Track not found: ' + fullTitle);
+      //     callback(false);
+      //   } else {
+      //     const normalized = normalizeTrack(artist, title);
+      //     searchTrack(normalized.artist, normalized.title, callback, true);
+      //   }
+      // }
+    },
+    err => (err ? log.error(timestamp, err) : null)
+  );
 }
 
 /**
@@ -222,16 +153,13 @@ function removeAfterChar(string, chars) {
 }
 
 /**
- * Add track to playlist.
- * @param {string} track - Track as Spotify URI.
+ * Add tracks to playlist.
+ * @param {array} tracks - Tracks as Spotify URIs.
  */
-function addTrack(track) {
+function addTracks(tracks) {
   spotifyApi
-    .addTracksToPlaylist(SPOTIFY_USER, SPOTIFY_PLAYLIST, [track])
-    .then(
-      data => log.info(timestamp, 'Added track to playlist.'),
-      err => (err ? log.error(timestamp, err) : null)
-    );
+    .addTracksToPlaylist(SPOTIFY_USER, SPOTIFY_PLAYLIST, tracks)
+    .then(data => data, err => log.error(timestamp, err.body));
 }
 
 /**
@@ -239,10 +167,15 @@ function addTrack(track) {
  * @callback - Fired when token was set.
  */
 function refreshToken(callback) {
-  spotifyApi.refreshAccessToken().then(data => {
-    spotifyApi.setAccessToken(data.body['access_token']);
-    callback ? callback() : null;
-  }, err => (err ? log.error(timestamp, err) : null));
+  spotifyApi.refreshAccessToken().then(
+    data => {
+      spotifyApi.setAccessToken(data.body['access_token']);
+      callback ? callback() : null;
+    },
+    err => {
+      log.error(timestamp, err);
+    }
+  );
 }
 
 /**
@@ -275,45 +208,24 @@ function minifyData(data) {
  * @callback - Fired once completed.
  */
 function clearPlaylist(callback) {
-  spotifyApi.getPlaylist(SPOTIFY_USER, SPOTIFY_PLAYLIST).then(data => {
-    log.info(timestamp, 'Got all tracks!');
-    const tracks = data.body.tracks.items.map(item => ({
-      uri: item.track.uri,
-    }));
-    spotifyApi
-      .removeTracksFromPlaylist(SPOTIFY_USER, SPOTIFY_PLAYLIST, tracks)
-      .then(data => {
-        log.info(timestamp, 'Playlist cleared!');
-        callback();
-      }, err => (err ? log.error(timestamp, err) : null));
-  }, err => (err ? log.error(timestamp, err) : null));
-}
-
-function removeDuplicateTracks() {
-  return spotifyApi.getPlaylist(SPOTIFY_USER, SPOTIFY_PLAYLIST).then(data => {
-    log.info(timestamp, 'Got all tracks!');
-    const tracks = data.body.tracks.items.map(item => ({
-      uri: item.track.uri,
-      name: item.track.name,
-    }));
-
-    let uniq = {};
-    const duplicates = tracks.filter(function(entry) {
-      if (uniq[entry.name]) {
-        return true;
-      }
-      uniq[entry.name] = true;
-      return false;
-    });
-
-    if (duplicates.length) {
+  spotifyApi.getPlaylist(SPOTIFY_USER, SPOTIFY_PLAYLIST).then(
+    data => {
+      // log.info(timestamp, 'Got all tracks!');
+      const tracks = data.body.tracks.items.map(item => ({
+        uri: item.track.uri,
+      }));
       spotifyApi
-        .removeTracksFromPlaylist(SPOTIFY_USER, SPOTIFY_PLAYLIST, duplicates)
-        .then(data => {
-          log.info(timestamp, `Removed ${duplicates.length} duplicate tracks!`);
-        });
-    }
-  });
+        .removeTracksFromPlaylist(SPOTIFY_USER, SPOTIFY_PLAYLIST, tracks)
+        .then(
+          data => {
+            log.info(timestamp, 'Playlist cleared!');
+            callback();
+          },
+          err => (err ? log.error(timestamp, err) : null)
+        );
+    },
+    err => (err ? log.error(timestamp, err) : null)
+  );
 }
 
 /**
