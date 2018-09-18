@@ -11,7 +11,7 @@ const http = require('http');
 const { PORT = 3002 } = process.env;
 
 const DESCRIPTION =
-  '🔥 Top 50 Hype Machine tracks that are available on Spotify, updated every 24 hours! Maintained by a bot. Open Source: https://github.com/fabe/hypem-spotify';
+  '🔥 Top 50 Hype Machine tracks that are available on Spotify, updated every 24 hours! Maintained by a bot. Open Source: https://github.com/fabe/hypem-spotify.';
 const SPOTIFY_USER = process.env.SPOTIFY_USER;
 const SPOTIFY_PLAYLIST = process.env.SPOTIFY_PLAYLIST;
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
