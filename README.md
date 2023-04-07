@@ -7,7 +7,7 @@
     git clone git@github.com:fabe/hypem-spotify.git
     cd hypem-spotify
     yarn
-    yarn start
+    vercel dev
 
 ## Credentials
 
@@ -15,4 +15,4 @@ Edit the your Spotify API credentials inside `.env.example`, then rename the fil
 
 ## Author
 
-- Fabian Schultz ([@fschultz_](https://twitter.com/fschultz_))
+- Fabian Schultz ([@fschultz\_](https://twitter.com/fschultz_))
